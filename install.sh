@@ -2,7 +2,7 @@
 set -u
 
 REPO_URL="${https://github.com/Slymffz/hazztermux.git}"
-INSTALL_DIR="${HAZZSCREENS_DIR:-$HOME/hazztermux}"
+INSTALL_DIR="${HAZZSCREENS_DIR:-$HOME/HazzScreenS}"
 
 say() {
     printf '[HazzScreenS] %s\n' "$*"
