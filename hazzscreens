@@ -1,0 +1,23 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -u
+
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+PREPARE="$ROOT_DIR/scripts/prepare_termux.sh"
+SCANNER="$ROOT_DIR/bugreport_scanner_termux.py"
+
+if [ ! -f "$SCANNER" ]; then
+    printf '[HazzScreenS] ERRO: scanner não encontrado em %s\n' "$SCANNER" >&2
+    exit 1
+fi
+
+if [ -f "$PREPARE" ]; then
+    bash "$PREPARE" || exit 1
+fi
+
+PYTHON_BIN="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+if [ -z "$PYTHON_BIN" ]; then
+    printf '[HazzScreenS] ERRO: Python não está disponível.\n' >&2
+    exit 1
+fi
+
+exec "$PYTHON_BIN" "$SCANNER" "$@"
