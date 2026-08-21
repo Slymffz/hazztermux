@@ -8,6 +8,9 @@ Comandos: gerar, analisar e start.
 from __future__ import annotations
 
 import argparse
+import getpass
+import hashlib
+import json
 import os
 import re
 import shlex
@@ -15,6 +18,8 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 import zipfile
 from pathlib import Path
 from typing import BinaryIO, Iterable
@@ -72,6 +77,13 @@ YELLOW = "\033[93m"
 CYAN = "\033[96m"
 BLUE = "\033[94m"
 COLOR_ENABLED = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+LICENSE_API_URL = os.environ.get(
+    "HAZZSCREENS_LICENSE_API_URL",
+    "https://hazzlicens-snkfjagb.manus.space/api/license/validate",
+)
+LICENSE_CONFIG_PATH = Path(
+    os.environ.get("HAZZSCREENS_LICENSE_FILE", str(Path.home() / ".hazzscreens_license.json"))
+)
 
 
 def paint(text: str, color: str) -> str:
@@ -189,6 +201,130 @@ def print_critical(text: str) -> None:
 
 def stamp() -> str:
     return time.strftime("%Y%m%d_%H%M%S")
+
+
+def android_property(name: str) -> str:
+    """Lê uma propriedade Android sem imprimir valores sensíveis no terminal."""
+    getprop = shutil.which("getprop") or "/system/bin/getprop"
+    try:
+        result = subprocess.run(
+            [getprop, name], capture_output=True, text=True, timeout=2, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return result.stdout.strip()
+
+
+def device_fingerprint() -> tuple[str, str]:
+    """Gera um hash estável; nenhum identificador bruto é persistido localmente."""
+    serial = android_property("ro.serialno") or android_property("ro.boot.serialno")
+    build = android_property("ro.build.fingerprint")
+    device = android_property("ro.product.device")
+    model = android_property("ro.product.model")
+    stable_values = [value for value in (serial, build, device) if value]
+    if not stable_values:
+        stable_values = [os.uname().nodename, str(Path.home())]
+    fingerprint = hashlib.sha256("\n".join(stable_values).encode("utf-8")).hexdigest()
+    label = " ".join(value for value in (model, device) if value).strip() or "Android Termux"
+    return fingerprint, label[:160]
+
+
+def load_saved_license_key() -> str:
+    try:
+        data = json.loads(LICENSE_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    key = data.get("key", "") if isinstance(data, dict) else ""
+    return key.strip().upper() if isinstance(key, str) else ""
+
+
+def save_license_key(key: str) -> None:
+    LICENSE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary = LICENSE_CONFIG_PATH.with_suffix(".tmp")
+    with temporary.open("w", encoding="utf-8") as handle:
+        try:
+            os.chmod(temporary, 0o600)
+        except OSError:
+            pass
+        json.dump({"key": key.strip().upper()}, handle)
+        handle.write("\n")
+    temporary.replace(LICENSE_CONFIG_PATH)
+    try:
+        os.chmod(LICENSE_CONFIG_PATH, 0o600)
+    except OSError:
+        pass
+
+
+def clear_saved_license_key() -> None:
+    try:
+        LICENSE_CONFIG_PATH.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise RuntimeError(f"não foi possível apagar a key salva: {exc}") from exc
+
+
+def prompt_license_key() -> str:
+    print_explanation("informe a key HazzScreenS recebida na compra. Ela será salva somente neste aparelho.")
+    try:
+        key = getpass.getpass("Key HazzScreenS: ").strip().upper()
+    except (EOFError, KeyboardInterrupt):
+        raise RuntimeError("key não informada") from None
+    if len(key) < 12:
+        raise RuntimeError("key inválida. Confira o código recebido.")
+    return key
+
+
+def validate_license_key(key: str) -> dict[str, object]:
+    fingerprint, label = device_fingerprint()
+    request_body = json.dumps(
+        {"key": key, "deviceFingerprint": fingerprint, "deviceLabel": label}
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        LICENSE_API_URL,
+        data=request_body,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "HazzScreenS-Termux/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            body = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"não foi possível validar a licença (HTTP {exc.code})") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise RuntimeError("sem conexão com o servidor de licenças. Conecte-se à internet e tente novamente.") from exc
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("resposta inválida do servidor de licenças") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("resposta inválida do servidor de licenças")
+    return payload
+
+
+def ensure_valid_license() -> None:
+    key = load_saved_license_key() or prompt_license_key()
+    response = validate_license_key(key)
+    status = str(response.get("status", "invalid")).lower()
+    if status == "valid":
+        save_license_key(key)
+        print(paint("[+] Licença HazzScreenS validada para este dispositivo.", GREEN))
+        print()
+        return
+
+    clear_saved_license_key()
+    reason = str(response.get("reason", ""))
+    messages = {
+        "expired": "esta key expirou. Solicite uma renovação à HazzScreenS.",
+        "revoked": "esta key foi revogada. Entre em contato com a HazzScreenS.",
+        "device_limit_reached": "esta key já atingiu o limite de dispositivos autorizado.",
+    }
+    message = messages.get(status) or messages.get(reason) or "key inválida ou não encontrada."
+    raise RuntimeError(f"licença bloqueada: {message}")
 
 
 def default_shared_dirs() -> list[Path]:
@@ -1498,12 +1634,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     if len(sys.argv) == 1:
-        return interactive_menu()
+        try:
+            ensure_valid_license()
+            return interactive_menu()
+        except Exception as exc:
+            print(f"\nERRO: {exc}", file=sys.stderr)
+            return 1
 
     args = build_parser().parse_args()
     out_dir = output_dir(args.out)
 
     try:
+        ensure_valid_license()
         if args.comando == "pareamento":
             return pair_adb(out_dir)
         if args.comando == "gerar":

@@ -4,20 +4,60 @@ O HazzScreenS é um scanner Python para Termux que analisa bugreports Android em
 
 > O scanner é uma ferramenta de triagem. Um package, uma porta ADB, um pareamento ou uma linha isolada de log não prova, sozinho, acesso indevido, trapaça ou participação em uma partida. O resultado deve ser revisado com contexto.
 
+## Instalação simples com um comando
+
+Cole este comando inteiro no Termux:
+
+```sh
+pkg install -y curl bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Slymffz/hazztermux/main/install_simple.sh)"
+```
+
+Esse método não usa Git nem exige clone manual. Ele baixa o ZIP da branch `main`, instala Python, `curl`, `unzip` e tenta instalar `android-tools`, solicita o armazenamento compartilhado e cria os comandos `hazzscreens` e `hazzscreens-update`.
+
+Depois da instalação, execute:
+
+```sh
+hazzscreens
+```
+
+## Ativação por licença
+
+Na primeira execução, o HazzScreenS solicita a **key** entregue pelo administrador. O scanner gera um fingerprint hash do aparelho e envia somente esse hash, o nome resumido do dispositivo e a key ao painel de licenças para validação. O menu é liberado apenas quando a API retorna o estado `valid`.
+
+> O scanner não salva o número de série nem outros identificadores brutos do aparelho. A key fica salva somente no próprio Termux, em `~/.hazzscreens_license.json`, com permissão de arquivo restrita quando o sistema oferece suporte.
+
+O painel publicado que atende as validações é:
+
+```text
+https://hazzlicens-snkfjagb.manus.space
+```
+
+Se a key expirar, for revogada, não existir ou já tiver atingido o limite de dispositivos, o scanner permanece bloqueado e mostra o motivo. Para trocar uma key salva, use:
+
+```sh
+hazzscreens trocar-key
+```
+
+Para atualizar no futuro:
+
+```sh
+hazzscreens-update
+```
+
 ## Instalação pelo GitHub
 
-Depois de publicar este diretório em um repositório GitHub, execute no Termux:
+Para instalar pelo Git, execute no Termux:
 
 ```sh
 pkg install -y curl git
-export HAZZSCREENS_REPO_URL="https://github.com/SEU_USUARIO/HazzScreenS.git"
-bash -c "$(curl -fsSL \"$HAZZSCREENS_REPO_URL/raw/main/install.sh\")"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Slymffz/hazztermux/main/install.sh)"
 ```
 
 Como alternativa, para evitar executar um script remoto diretamente, clone primeiro e rode o instalador localmente:
 
 ```sh
-git clone https://github.com/SEU_USUARIO/HazzScreenS.git ~/HazzScreenS
+git clone https://github.com/Slymffz/hazztermux.git ~/HazzScreenS
 cd ~/HazzScreenS
 bash install.sh
 ```
@@ -79,20 +119,19 @@ A coleta ADB ao vivo exige que o aparelho esteja pareado/conectado e autorizado.
 | `bugreport_scanner_termux.py` | Scanner principal de bugreports, Proxys e evidências ADB/USB. |
 | `hazzscreens` | Lançador que prepara o Termux e executa o scanner. |
 | `install.sh` | Clone inicial, instalação de dependências e criação dos comandos. |
+| `install_simple.sh` | Instalação por ZIP com um único comando, sem Git. |
 | `scripts/prepare_termux.sh` | Solicitação de armazenamento e verificação controlada de pacotes. |
 | `scripts/update.sh` | Atualização segura do clone com fast-forward. |
+| `~/.hazzscreens_license.json` | Arquivo local com a key ativada; não contém o fingerprint em texto puro. |
 
-## Publicação do repositório
+## Atualização do repositório
 
-No computador onde o repositório será publicado, ajuste a URL do `README.md`, inicialize o Git e envie os arquivos:
+No computador onde o repositório será atualizado, envie os arquivos para a branch `main`:
 
 ```sh
-git init
 git add .
-git commit -m "Inicializa HazzScreenS para Termux"
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/HazzScreenS.git
-git push -u origin main
+git commit -m "Atualiza integração de licenças HazzScreenS"
+git push origin main
 ```
 
-Substitua `SEU_USUARIO` pelo seu usuário real do GitHub antes de publicar. Nunca coloque tokens, senhas, dumps pessoais ou bugreports reais no repositório.
+O repositório oficial é `https://github.com/Slymffz/hazztermux`. Nunca coloque tokens, senhas, keys de clientes, dumps pessoais ou bugreports reais no repositório.

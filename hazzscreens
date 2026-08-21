@@ -10,6 +10,12 @@ if [ ! -f "$SCANNER" ]; then
     exit 1
 fi
 
+if [ "${1:-}" = "trocar-key" ]; then
+    rm -f "$HOME/.hazzscreens_license.json"
+    shift
+    printf '[HazzScreenS] Key removida deste aparelho. Informe a nova key para continuar.\n'
+fi
+
 if [ -f "$PREPARE" ]; then
     bash "$PREPARE" || exit 1
 fi

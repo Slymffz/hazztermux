@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
 
-REPO_URL="${https://github.com/Slymffz/hazztermux.git}"
+REPO_URL="${HAZZSCREENS_REPO_URL:-https://github.com/Slymffz/hazztermux.git}"
 INSTALL_DIR="${HAZZSCREENS_DIR:-$HOME/HazzScreenS}"
 
 say() {
@@ -15,10 +15,6 @@ fail() {
 
 if ! command -v pkg >/dev/null 2>&1; then
     fail 'execute este instalador dentro do Termux.'
-fi
-
-if [ "$REPO_URL" = "https://github.com/Slymffz/hazztermux" ]; then
-    fail 'defina HAZZSCREENS_REPO_URL com a URL real do seu repositório GitHub.'
 fi
 
 if ! command -v git >/dev/null 2>&1; then
@@ -53,3 +49,5 @@ fi
 
 say 'instalação concluída.'
 say 'execute: hazzscreens'
+say 'na primeira execução, informe a key HazzScreenS recebida na compra.'
+say 'para trocar uma key no futuro: hazzscreens trocar-key'
