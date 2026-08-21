@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
 
-REPO_URL="${https://github.com/Slymffz/hazztermux}"
+REPO_URL="${https://github.com/Slymffz/hazztermux.git}"
 INSTALL_DIR="${HAZZSCREENS_DIR:-$HOME/hazztermux}"
 
 say() {
